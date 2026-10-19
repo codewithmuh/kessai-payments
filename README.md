@@ -8,7 +8,7 @@
 payments and refunds in yen, a double-entry ledger, signed webhooks and daily reconciliation). It runs across three
 Availability Zones in Tokyo with a disaster-recovery copy in Osaka. Then it gets broken on purpose, in 12 failure
 drills that measure how many acknowledged payments were lost (RPO) and how long recovery took (RTO).
-
+<img width="1983" height="793" alt="Kessai Payments_ Cloud Infrastructure Banner" src="https://github.com/user-attachments/assets/ca31fab8-d18b-4540-9074-1aa01ab98c16" />
 > **A reference service, not a payment provider.** No real money, no card data. It follows real-world rules
 > (idempotency keys, signed webhooks, whole-yen amounts, double-entry bookkeeping) so the failure drills mean
 > something.
