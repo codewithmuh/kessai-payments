@@ -4,17 +4,18 @@ SHELL := bash
 
 API := services/api
 
-.PHONY: help setup fmt lint test check scan build up down logs migrate shell clean
+.PHONY: help setup fmt lint test check scan build up down logs migrate shell clean infra-check backup-account
 
 help: ## Show available commands
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-8s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_%-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 setup: ## Install dependencies and the git hooks (needs uv and pre-commit)
 	cd $(API) && uv sync
 	pre-commit install
 
-fmt: ## Format all code
+fmt: ## Format all code (Python and Terraform)
 	cd $(API) && uv run ruff format . && uv run ruff check --fix .
+	terraform fmt -recursive infra
 
 lint: ## Lint and type-check everything (same as CI)
 	cd $(API) && uv run ruff format --check . && uv run ruff check . && uv run mypy
@@ -46,6 +47,15 @@ migrate: ## Apply database migrations to the local stack
 
 shell: ## Django shell against the local stack
 	docker compose run --rm --entrypoint python api manage.py shell
+
+infra-check: ## Terraform static checks: fmt, validate, tflint, trivy, checkov (no AWS access)
+	$(MAKE) -C infra check
+
+aws-%: ## AWS targets (aws-bootstrap, aws-up, aws-down, ...): see infra/README.md before running any
+	$(MAKE) -C infra $@
+
+backup-account: ## Once, in the separate backup account: see infra/README.md
+	$(MAKE) -C infra backup-account
 
 clean: ## Remove build, test and cache artifacts
 	rm -rf $(API)/.venv $(API)/.pytest_cache $(API)/.mypy_cache $(API)/.ruff_cache $(API)/.coverage

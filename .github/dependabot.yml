@@ -16,5 +16,22 @@ updates:
   - package-ecosystem: docker
     directory: /services/api
     schedule: { interval: weekly }
+    ignore:
+      # Moving to a new Python (3.13 -> 3.14) is a deliberate upgrade: pyproject.toml, .python-version
+      # and uv.lock pin 3.13, so the image must change with them, in one pull request.
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
     groups:
       base-images: { patterns: ["*"] }
+
+  - package-ecosystem: terraform
+    directories:
+      - /infra/bootstrap
+      - /infra/platform
+      - /infra/data
+      - /infra/fis
+      - /infra/backup-plan
+      - /infra/backup-account
+    schedule: { interval: weekly }
+    groups:
+      terraform: { patterns: ["*"] }

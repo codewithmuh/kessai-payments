@@ -19,6 +19,8 @@ CHECKOV ?= checkov
 
 KESSAI_REGION ?= ap-northeast-1
 KESSAI_BACKUP_REGION ?= ap-northeast-3
+# The scripts read the same values.
+export KESSAI_REGION KESSAI_BACKUP_REGION
 CLUSTER := kessai
 
 STACKS := bootstrap platform data fis backup-plan backup-account
