@@ -48,7 +48,21 @@ jobs:
     runs-on: ubuntu-24.04 # pinned: upgrade deliberately, not when GitHub moves "latest"
     defaults:
       run:
-        working-directory: services/api-python
+        working-directory: services/api
+    services:
+      # Aurora PostgreSQL 17 in AWS. Tests marked `postgres` (row locks, SKIP LOCKED) need it.
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: kessai
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: kessai
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U kessai -d kessai"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      DATABASE_URL: postgres://kessai:ci-only@localhost:5432/kessai
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -57,53 +71,26 @@ jobs:
         with:
           version: "0.13.0"
           enable-cache: true
-          cache-dependency-glob: services/api-python/uv.lock
+          cache-dependency-glob: services/api/uv.lock
       - run: uv sync --locked
       - run: uv run ruff format --check .
       - run: uv run ruff check --output-format=github .
       - run: uv run mypy
+      - run: uv run python manage.py makemigrations --check --dry-run # models and migrations agree
+        env:
+          DJANGO_SETTINGS_MODULE: tests.settings
       - run: uv run pytest # fails below 80% coverage (see pyproject.toml)
-
-  go:
-    name: Go (lint, tests)
-    runs-on: ubuntu-24.04 # pinned: upgrade deliberately, not when GitHub moves "latest"
-    defaults:
-      run:
-        working-directory: services/api-go
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version: "1.27"
-          cache-dependency-path: services/api-go/go.sum
-      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
-        with:
-          version: v2.14.0
-          working-directory: services/api-go
-      - name: Test (race detector, 80% coverage gate)
-        run: |
-          go test -race -covermode=atomic -coverprofile=coverage.out ./...
-          total=$(go tool cover -func=coverage.out | awk '/^total:/ {sub("%", "", $3); print $3}')
-          echo "Total coverage: ${total}%"
-          if awk -v t="$total" 'BEGIN { exit !(t + 0 < 80) }'; then
-            echo "::error::Go coverage ${total}% is below 80%"
-            exit 1
-          fi
 
   images:
     name: Image ${{ matrix.service }} (build, scan, smoke test)
-    needs: [python, go]
+    needs: [python]
     runs-on: ubuntu-24.04 # pinned: upgrade deliberately, not when GitHub moves "latest"
     strategy:
       fail-fast: false
       matrix:
         include:
-          - service: api-python
+          - service: api
             port: 8000
-          - service: api-go
-            port: 8080
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -126,18 +113,21 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
-      - name: Smoke test (container starts, becomes ready, serves traffic)
+      - name: Smoke test (container starts, serves traffic, shuts down gracefully)
         env:
           IMAGE: ${{ matrix.service }}:ci
           PORT: ${{ matrix.port }}
         run: |
+          # No database here: /readyz would rightly say 503, so check liveness and a DB-free route.
           docker run --detach --name smoke --read-only --tmpfs /tmp --cap-drop ALL \
+            --env DJANGO_SECRET_KEY=ci-only-smoke-test-secret-key-0123456789 \
+            --env DATABASE_URL=postgres://nobody:nothing@127.0.0.1:1/none \
             --publish "127.0.0.1:9000:${PORT}" "$IMAGE"
           for _ in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:9000/readyz; then break; fi
+            if curl --fail --silent http://127.0.0.1:9000/healthz; then break; fi
             sleep 1
           done
-          curl --fail --silent --show-error http://127.0.0.1:9000/readyz
-          curl --fail --silent --show-error "http://127.0.0.1:9000/v1/hello?name=ci"
+          curl --fail --silent --show-error http://127.0.0.1:9000/healthz
+          curl --fail --silent --show-error --output /dev/null http://127.0.0.1:9000/v1/openapi.yaml
           docker stop --time 20 smoke # graceful shutdown must finish in time
           docker logs smoke | tail -n 5

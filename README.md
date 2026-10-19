@@ -1,120 +1,98 @@
-# Production repo template
+# Kessai (決済)
 
-[![ci](https://github.com/codewithmuh/production-repo-template/actions/workflows/ci.yml/badge.svg)](https://github.com/codewithmuh/production-repo-template/actions/workflows/ci.yml)
-[![release](https://github.com/codewithmuh/production-repo-template/actions/workflows/release.yml/badge.svg)](https://github.com/codewithmuh/production-repo-template/actions/workflows/release.yml)
+[![ci](https://github.com/codewithmuh/kessai-payments/actions/workflows/ci.yml/badge.svg)](https://github.com/codewithmuh/kessai-payments/actions/workflows/ci.yml)
+[![release](https://github.com/codewithmuh/kessai-payments/actions/workflows/release.yml/badge.svg)](https://github.com/codewithmuh/kessai-payments/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-A GitHub template that makes every new repository **production-grade from the first commit**: CI on every pull
-request, secret and vulnerability scanning, signed container images with SBOMs, automated releases and changelog,
-docs and runbooks, and a one-command local setup. It ships with two small sample services — one in **Python
-(FastAPI)** and one in **Go** — so every pipeline runs against real code.
+**A payments API on Amazon EKS that never loses a payment.** Kessai is a small wallet payments service (top-ups,
+payments and refunds in yen, a double-entry ledger, signed webhooks and daily reconciliation). It runs across three
+Availability Zones in Tokyo with a disaster-recovery copy in Osaka. Then it gets broken on purpose, in 12 failure
+drills that measure how many acknowledged payments were lost (RPO) and how long recovery took (RTO).
 
-> Start a new project: click **Use this template** on GitHub, then follow [After creating a repo](#after-creating-a-repo-from-this-template).
+> **A reference service, not a payment provider.** No real money, no card data. It follows real-world rules
+> (idempotency keys, signed webhooks, whole-yen amounts, double-entry bookkeeping) so the failure drills mean
+> something.
 
----
+**Status: phase 0, building in public.** The service plumbing and CI are done; the payments core is next. See the
+[roadmap](docs/roadmap.md). Every result in this README will be a measured number, published as each drill runs.
 
-## What you get
+## What it proves
 
-| Area | What is set up | Where |
-|---|---|---|
-| Code quality | ruff (lint + format), mypy strict, golangci-lint v2, pre-commit hooks | `pyproject.toml`, `.golangci.yml`, `.pre-commit-config.yaml` |
-| Tests | pytest and Go tests with the race detector; **80 % coverage gate**; container smoke test | `tests/`, `*_test.go`, `ci.yml` |
-| CI | Lint → test → build → scan → smoke test on every PR; workflows linted with actionlint | `.github/workflows/ci.yml` |
-| Security | gitleaks, Trivy (repo + images), Actions pinned to SHAs, least-privilege tokens, non-root read-only containers | `ci.yml`, `Dockerfile`s, `SECURITY.md` |
-| Supply chain | Images signed with cosign (keyless), SBOM (SPDX) on every release, build provenance | `release.yml` |
-| Releases | Conventional Commits → release-please PR → tag, changelog, GHCR images | `release.yml`, `CHANGELOG.md` |
-| Dependencies | Weekly grouped Dependabot PRs for Actions, uv, Go modules and base images | `.github/dependabot.yml` |
-| Observability | JSON logs with request IDs, Prometheus metrics, liveness/readiness probes | `services/*` |
-| Reliability | Graceful shutdown on SIGTERM, server timeouts, health checks in images | `services/*`, `compose.yaml` |
-| Docs | Architecture, threat model, ADRs, runbooks, contributing, security policy, issue/PR templates | `docs/`, `.github/` |
-| Developer experience | `make` targets, Dev Container, Docker Compose, `.env.example` | `Makefile`, `.devcontainer/` |
+| Question an interviewer asks | How Kessai answers it |
+|---|---|
+| "What happens when an AZ goes down?" | Drill 4: AWS FIS powers off a Tokyo AZ under load; lost payments are counted |
+| "How do you know you lost no data?" | A client outside AWS logs every acknowledged payment and diffs that log against the database |
+| "Can a retry charge twice?" | Idempotency keys stored in the same transaction as the payment, tested during a database failover |
+| "Do your backups restore?" | Timed restores from a separate, locked backup account, including a ransomware drill |
+| "What if the whole region goes?" | An Aurora Global Database failover to Osaka, with lost payments counted and recovered from the snapshot |
+
+The full design, money rules, recovery targets and all 12 drills are in [docs/scope.md](docs/scope.md).
 
 ## Quick start
 
-Requirements: [uv](https://docs.astral.sh/uv/), [Go 1.27](https://go.dev/dl/),
-[golangci-lint](https://golangci-lint.run/), [pre-commit](https://pre-commit.com/), Docker — or just open the
-**Dev Container**.
+Requirements: [uv](https://docs.astral.sh/uv/), [pre-commit](https://pre-commit.com/) and Docker, or just open
+the **Dev Container**.
 
 ```bash
 make setup    # install dependencies and git hooks
-make check    # lint, type-check and test everything (same as CI)
-make up       # run both services: python on :8000, go on :8080
+make check    # lint, type-check and test (same as CI)
+make up       # PostgreSQL 17, local SQS (ElasticMQ) and the API on :8000
 
-curl localhost:8000/v1/hello?name=Tokyo   # {"message":"Hello, Tokyo!"}
-curl localhost:8080/metrics | head
+curl localhost:8000/healthz          # {"status": "ok"}
+curl localhost:8000/readyz           # {"status": "ready"}
+curl localhost:8000/v1/openapi.yaml
 
 make down
 ```
 
 Run `make` with no arguments to list every command.
 
-## How changes flow
-
-```mermaid
-flowchart LR
-    dev[Branch + PR] --> ci{ci.yml<br/>lint · test · scan<br/>build · smoke test}
-    ci -- green + review --> main[(main)]
-    main --> rp[release-please<br/>opens Release PR]
-    rp -- merge --> tag[Tag + GitHub release<br/>CHANGELOG]
-    tag --> pub[Publish to GHCR<br/>sign · SBOM · provenance]
-```
-
-1. Open a pull request with a [Conventional Commit](https://www.conventionalcommits.org/) title.
-2. `ci.yml` must pass and a code owner approves; squash-merge into `main`.
-3. release-please keeps a Release PR open with the next version and changelog.
-4. Merging the Release PR tags the version; `release.yml` publishes signed images to GHCR and attaches SBOMs.
-
 ## Repository layout
 
 ```
-.github/                 workflows, Dependabot, CODEOWNERS, issue + PR templates
-.devcontainer/           reproducible dev environment
-docs/                    architecture, threat model, ADRs, runbooks
-services/api-python/     FastAPI sample: src/, tests/, Dockerfile, pyproject.toml, uv.lock
-services/api-go/         Go sample: cmd/, internal/, Dockerfile, go.mod
-compose.yaml             local run with production-like hardening
-Makefile                 every command you need
+services/api/      Django 5.2 LTS service: src/config (settings), src/core (probes, metrics, logs, errors,
+                   database outages), tests/, Dockerfile. The payment apps go in src/ as they are built.
+dev/               local-only config (ElasticMQ queues)
+infra/             Terraform for AWS (phase 0: written and statically checked, not applied)
+docs/              scope, roadmap, architecture, threat model, ADRs, runbooks
+compose.yaml       local stack with production-like hardening
+Makefile           every command you need
 ```
 
-## Every service follows the same contract
+## Runtime contract
 
 | Endpoint / behaviour | Meaning |
 |---|---|
-| `GET /healthz` | Liveness — the process is up (never checks dependencies) |
-| `GET /readyz` | Readiness — 503 until started and while shutting down |
-| `GET /metrics` | Prometheus metrics: request count and latency by route and status |
-| Logs | JSON on stdout, one line per request, with `request_id` (taken from `X-Request-Id` or generated) |
-| `SIGTERM` | Fail readiness → finish in-flight requests (≤ 20 s) → exit |
-| Image | Non-root user, read-only filesystem, built-in `HEALTHCHECK` |
+| `GET /healthz` | Liveness: the process is up (never checks dependencies) |
+| `GET /readyz` | Readiness: 503 while shutting down, or after the database has failed for the grace period |
+| `GET /metrics` | Prometheus metrics: requests, latency and database outages, by route and status |
+| Database outage | `503 database_unavailable` with `Retry-After`; payments are safe to retry with the same `Idempotency-Key` |
+| Logs | JSON on stdout, one line per request, with `request_id` |
+| `SIGTERM` | Fail readiness, finish in-flight requests (≤ 20 s), exit |
+| Image | Non-root user, read-only filesystem, built-in `HEALTHCHECK`, signed with cosign, SBOM on every release |
 
-## After creating a repo from this template
+## How changes flow
 
-1. Replace `codewithmuh/production-repo-template` in `README.md`, `SECURITY.md`, `.github/CODEOWNERS` and
-   `services/api-go/go.mod` with your repository.
-2. Rename, replace or delete the sample services — keep the runtime contract above.
-3. Protect `main` (Settings → Branches): require pull requests, one approval, and these status checks:
-   `Repo checks (workflows, secrets, misconfigurations)`, `Python (lint, types, tests)`, `Go (lint, tests)`,
-   and both `Image … (build, scan, smoke test)` jobs.
-4. Settings → Actions → General: allow GitHub Actions to create pull requests (needed by release-please).
-5. Settings → Code security: enable Dependabot alerts and private vulnerability reporting.
-6. Use **squash merge** only, so each PR title becomes one Conventional Commit.
-7. Fill in `docs/architecture.md` and write your first real ADR.
+1. Open a pull request with a [Conventional Commit](https://www.conventionalcommits.org/) title.
+2. CI must pass: lint, types, tests against PostgreSQL, secret and vulnerability scans, image build and smoke test.
+3. release-please keeps a Release PR open. Merging it tags the version and publishes a signed image to GHCR with an
+   SBOM.
 
 ## Production-grade checklist
 
-Use this before announcing a project built from the template.
+Every item must pass before v1.0.
 
-- [ ] Code quality — linters, formatters, type checks and pre-commit pass
-- [ ] Tests — unit + integration, ≥ 80 % coverage, a smoke test and a load test with published numbers
-- [ ] CI — every PR runs lint, tests, build and scans; `main` is protected
-- [ ] Security — no secrets in git, least privilege, scanned images, SBOM, signed images, threat model
-- [ ] Infrastructure as code — remote state, `make up` / `make down`, cost estimate, clean teardown
-- [ ] Releases — semantic versions, changelog, images in a registry
-- [ ] Observability — logs, metrics, traces, dashboards as code, alerts linked to runbooks
-- [ ] Reliability — probes, graceful shutdown, timeouts/retries/idempotency, tested backups, written SLOs
-- [ ] Docs — README with quick start, architecture, ADRs, runbooks, contributing, license
-- [ ] Developer experience — one-command setup, Dev Container or Compose, seed data
-- [ ] Demo — screenshots, short demo video, write-up
+- [ ] Code quality: linters, formatters, type checks and pre-commit pass
+- [ ] Tests: unit + integration, ≥ 80% coverage, a smoke test and a load test with published numbers
+- [ ] CI: every PR runs lint, tests, build and scans; `main` is protected
+- [ ] Security: no secrets in git, least privilege, scanned and signed images, SBOM, threat model
+- [ ] Infrastructure as code: remote state, `make up` / `make down`, cost estimate, clean teardown
+- [ ] Releases: semantic versions, changelog, images in a registry
+- [ ] Observability: logs, metrics, traces, dashboards as code, alerts linked to runbooks
+- [ ] Reliability: probes, graceful shutdown, timeouts/retries/idempotency, tested backups, written SLOs
+- [ ] Docs: README with quick start, architecture, ADRs, runbooks, contributing, license
+- [ ] Developer experience: one-command setup, Dev Container or Compose, seed data
+- [ ] Demo: screenshots, a short demo video, a write-up
 
 ## License
 

@@ -6,7 +6,7 @@ Revisit it when you add an external integration, a data store, or a new trust bo
 ## Assets
 
 - Service availability
-- Data handled by the services (none in the template)
+- Wallet balances, payments, ledger entries, idempotency keys and merchant API keys (hashed). No card data, no real money
 - Build and release pipeline (images, signing identity)
 
 ## Threats and mitigations

@@ -1,30 +1,63 @@
-# Local run of every service with production-like hardening: `make up`, then `make down`.
-# Settings come from your shell or a `.env` file (see .env.example); defaults below.
-name: production-repo-template
+# Local run of Kessai with production-like hardening: `make up`, then `make down`.
+# PostgreSQL stands in for Aurora PostgreSQL and ElasticMQ for Amazon SQS (same API, FIFO + DLQ).
+# Settings come from your shell or a `.env` file (see .env.example); defaults below are local-only.
+name: kessai
 
 x-hardening: &hardening
   read_only: true
   cap_drop: [ALL]
   security_opt: ["no-new-privileges:true"]
   tmpfs: [/tmp]
-  restart: unless-stopped
+
+x-api-env: &api-env
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-only-secret-key-never-use-outside-your-laptop}
+  DATABASE_URL: postgres://kessai:${POSTGRES_PASSWORD:-kessai-local-only}@postgres:5432/kessai
+  DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+  LOG_LEVEL: ${LOG_LEVEL:-info}
 
 services:
-  api-python:
-    <<: *hardening
-    build:
-      context: ./services/api-python
-      args: { APP_VERSION: local }
+  postgres:
+    image: postgres:17-alpine # Aurora PostgreSQL 17 in AWS
     environment:
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-    ports: ["127.0.0.1:8000:8000"]
+      POSTGRES_USER: kessai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kessai-local-only}
+      POSTGRES_DB: kessai
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kessai -d kessai"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
 
-  api-go:
+  sqs:
+    image: softwaremill/elasticmq-native:1.7.1
+    volumes: ["./dev/elasticmq.conf:/opt/elasticmq.conf:ro"]
+    ports: ["127.0.0.1:9324:9324", "127.0.0.1:9325:9325"] # SQS API, web UI
+    restart: unless-stopped
+
+  migrate:
     <<: *hardening
     build:
-      context: ./services/api-go
+      context: ./services/api
       args: { APP_VERSION: local }
-    environment:
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      SHUTDOWN_TIMEOUT: ${SHUTDOWN_TIMEOUT:-20s}
-    ports: ["127.0.0.1:8080:8080"]
+    command: ["python", "manage.py", "migrate", "--noinput"]
+    environment: *api-env
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    <<: *hardening
+    build:
+      context: ./services/api
+      args: { APP_VERSION: local }
+    environment: *api-env
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+volumes:
+  pgdata:

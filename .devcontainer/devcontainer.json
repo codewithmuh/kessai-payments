@@ -1,20 +1,20 @@
 {
-  "name": "production-repo-template",
+  "name": "kessai-payments",
   "image": "mcr.microsoft.com/devcontainers/base:bookworm",
   "features": {
     "ghcr.io/devcontainers/features/python:1": { "version": "3.13" },
-    "ghcr.io/devcontainers/features/go:1": { "version": "1.27", "golangciLintVersion": "2.14.0" },
+    "ghcr.io/devcontainers/features/terraform:1": {},
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "postCreateCommand": "pipx install uv==0.13.0 && pipx install pre-commit && make setup",
-  "forwardPorts": [8000, 8080],
+  "forwardPorts": [8000, 9325],
   "customizations": {
     "vscode": {
       "extensions": [
         "charliermarsh.ruff",
         "ms-python.python",
-        "golang.go",
+        "hashicorp.terraform",
         "ms-azuretools.vscode-docker",
         "github.vscode-github-actions",
         "editorconfig.editorconfig"
