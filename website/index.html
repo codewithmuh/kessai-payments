@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kessai · A payments API broken on purpose</title>
+  <meta name="description" content="Kessai is an open-source reference payments service in yen on Amazon EKS in Tokyo, with a disaster-recovery copy in Osaka. It is broken on purpose in 12 failure drills that count every acknowledged payment lost and time every recovery.">
+  <meta name="theme-color" content="#f6f4ee" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e1214" media="(prefers-color-scheme: dark)">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Kessai · A payments API broken on purpose">
+  <meta property="og:description" content="A wallet payments service in yen, built to production standards on AWS in Tokyo and Osaka, then broken in 12 failure drills that count every lost payment.">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="main.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="progress" aria-hidden="true"><span id="progress-fill"></span></div>
+
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="#top" aria-label="Kessai home">
+        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" class="mark-bg"/><path d="M7 10.5h18M7 15.5h18M7 20.5h9" class="mark-rule"/><circle cx="22.5" cy="21.5" r="5.5" class="mark-seal"/></svg>
+        <span class="brand-name">Kessai</span><span class="brand-kanji" lang="ja">決済</span>
+      </a>
+      <button class="nav-toggle" aria-expanded="false" aria-controls="nav-links">
+        <span class="sr-only">Menu</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <nav id="nav-links" class="nav-links" aria-label="Sections">
+        <a href="#journey">One payment</a>
+        <a href="#rules">Money rules</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#drills">Drills</a>
+        <a href="#roadmap">Roadmap</a>
+        <a href="#learn">Glossary</a>
+        <a class="btn btn-small" href="https://github.com/codewithmuh/kessai-payments">
+          <svg viewBox="0 0 16 16" aria-hidden="true" class="gh"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Stations: where you are on the page (desktop only) -->
+  <nav class="stations" aria-label="Page sections">
+    <ol>
+      <li><a href="#top" data-station="top"><span>Start</span></a></li>
+      <li><a href="#journey" data-station="journey"><span>One payment</span></a></li>
+      <li><a href="#why" data-station="why"><span>Why it exists</span></a></li>
+      <li><a href="#rules" data-station="rules"><span>Money rules</span></a></li>
+      <li><a href="#architecture" data-station="architecture"><span>Architecture</span></a></li>
+      <li><a href="#measure" data-station="measure"><span>Scoring</span></a></li>
+      <li><a href="#drills" data-station="drills"><span>Drills</span></a></li>
+      <li><a href="#built" data-station="built"><span>What's built</span></a></li>
+      <li><a href="#run" data-station="run"><span>Run it</span></a></li>
+      <li><a href="#roadmap" data-station="roadmap"><span>Roadmap</span></a></li>
+      <li><a href="#learn" data-station="learn"><span>Glossary</span></a></li>
+    </ol>
+  </nav>
+
+  <main id="main">
+    <!-- ============================== Hero ============================== -->
+    <section class="hero" id="top">
+      <div class="hero-ledger" aria-hidden="true">
+        <svg id="hero-ledger" viewBox="0 0 1200 640" preserveAspectRatio="xMidYMid slice"></svg>
+        <div class="hero-fade"></div>
+      </div>
+      <div class="container hero-inner">
+        <p class="eyebrow reveal">Open source · Reference service · Built in public</p>
+        <h1 class="reveal">A payments API that gets<br class="br-wide"> broken on purpose.</h1>
+        <p class="lede reveal">
+          Kessai (<span lang="ja">決済</span>, "payment") is a small wallet payments service in yen, built the way a
+          payments team would build it: three Availability Zones in Tokyo and a disaster-recovery copy in Osaka. Then it
+          goes through 12 failure drills, and every drill is scored the same way: how many acknowledged payments were
+          lost, and how long recovery took.
+        </p>
+        <div class="cta-row reveal">
+          <a class="btn btn-primary" href="#journey">Follow one payment, end to end</a>
+          <a class="btn btn-ghost" href="https://github.com/codewithmuh/kessai-payments">Read the code on GitHub</a>
+        </div>
+        <p class="status-note reveal">
+          <span class="dot dot-wip" aria-hidden="true"></span>
+          <span>Phase 0, building in public: the service plumbing, CI and Terraform are written, and the payments core
+            is next. No drill has run yet, so this page shows the design and its targets, not results.
+            <a href="#built">See exactly what's built</a>.</span>
+        </p>
+      </div>
+
+      <div class="hero-live" aria-hidden="true">
+        <div class="live-pill"><span class="live-dot"></span><span>Illustration · Tokyo · 3 AZs</span></div>
+        <div class="score">
+          <p class="score-title">What every drill reports</p>
+          <dl>
+            <div><dt>Acknowledged</dt><dd id="score-acked">1,284</dd></div>
+            <div><dt>Found in the database</dt><dd id="score-found">1,284</dd></div>
+            <div class="score-zero"><dt>Lost</dt><dd>0<small>target</small></dd></div>
+            <div class="score-zero"><dt>Charged twice</dt><dd>0<small>target</small></dd></div>
+          </dl>
+        </div>
+        <div class="hero-feed" id="hero-feed"></div>
+      </div>
+
+      <a class="scroll-cue" href="#journey" aria-label="Scroll to follow one payment">
+        <span>Scroll to follow one payment</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v15m0 0l-6-6m6 6l6-6"/></svg>
+      </a>
+    </section>
+
+    <div class="container">
+      <ul class="stack-strip reveal" aria-label="Built with">
+        <li>Python 3.13 · Django 5.2</li><li>PostgreSQL 17 · Aurora</li><li>Amazon SQS FIFO</li><li>Amazon EKS</li>
+        <li>Karpenter</li><li>Argo CD</li><li>Terraform</li><li>AWS FIS</li><li>AWS Backup</li><li>Route 53</li>
+        <li>Prometheus · Grafana</li><li>OpenTelemetry</li>
+      </ul>
+    </div>
+
+    <!-- ============================== Journey ============================== -->
+    <section class="journey" id="journey">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">One payment, end to end</p>
+          <h2>Scroll, and watch ¥1,200 move without getting lost.</h2>
+          <p class="section-lede">
+            Sato Hana buys a latte and a bag of cookies at Café Komorebi and pays from her Kessai wallet. Follow that one
+            payment through six steps. The top card is the books, the left card is what crosses the wire, and the right
+            card is what happens inside the database.
+          </p>
+          <p class="design-note"><span class="pill pill-next">Next</span> This is the design the payments core is being
+            built to. The endpoints are not live yet, and request shapes are a sketch.</p>
+        </div>
+      </div>
+
+      <div class="container journey-grid">
+        <!-- Pinned scene -->
+        <div class="scene" id="scene" data-stage="request" data-step="0">
+          <div class="scene-books">
+            <div class="scene-label"><span class="scene-tag">The books <span lang="ja">帳簿</span></span><span id="scene-clock">12:04:05.020</span></div>
+            <ol class="flow" id="flow" aria-hidden="true">
+              <li data-n="client">App</li><li data-n="api">API</li><li data-n="db">Aurora</li><li data-n="queue">SQS</li><li data-n="merchant">Merchant</li><li data-n="bank">Bank file</li>
+            </ol>
+            <div class="books-body">
+              <div class="wallets">
+                <div class="wallet" id="w-cus">
+                  <p class="wallet-who">Sato Hana · customer</p>
+                  <p class="wallet-bal"><span id="bal-cus">¥5,000</span><span class="wallet-delta delta-neg">−¥1,200</span></p>
+                  <p class="wallet-id">wal_01JB8C…</p>
+                </div>
+                <div class="wallet" id="w-mer">
+                  <p class="wallet-who">Café Komorebi · merchant</p>
+                  <p class="wallet-bal"><span id="bal-mer">¥0</span><span class="wallet-delta delta-pos">+¥1,200</span></p>
+                  <p class="wallet-id">wal_01JB8D…</p>
+                </div>
+              </div>
+              <div class="journal" id="journal">
+                <div class="journal-head"><span>Entry</span><span>Account</span><span class="amt">Yen</span></div>
+                <ol>
+                  <li class="je je-old"><span class="t">topup</span><span class="acct">bank clearing</span><span class="amt neg">−5,000</span></li>
+                  <li class="je je-old"><span class="t">12:00:41</span><span class="acct">wallet · Sato</span><span class="amt pos">+5,000</span></li>
+                  <li class="je je-new"><span class="t">pay_…7Q</span><span class="acct">wallet · Sato</span><span class="amt neg">−1,200</span></li>
+                  <li class="je je-new"><span class="t">12:04:05</span><span class="acct">wallet · Komorebi</span><span class="amt pos">+1,200</span></li>
+                </ol>
+                <div class="journal-sum"><span>Σ every entry</span><span class="amt">¥0</span><span class="sum-ok">balanced</span></div>
+                <div class="journal-recon"><span>Ledger vs bank file</span><span class="sum-ok">matches</span></div>
+                <span class="untouched">No new entries</span>
+                <span class="stamp" lang="ja" aria-hidden="true">済</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="scene-panels">
+            <!-- What crosses the wire -->
+            <div class="panel panel-wire">
+              <div class="panel-head"><span class="scene-tag" id="wire-who">On the wire</span><span class="panel-sub" id="wire-sub">HTTPS · sketch of v1</span></div>
+              <div class="wire-views">
+                <pre class="wire-view active" data-view="request"><code><span class="tok-k">POST</span> /v1/payments
+<span class="tok-k">Idempotency-Key:</span> pay-sato-1042
+<span class="tok-c">{ "wallet_id": "wal_01JB8C…",
+  "merchant_id": "mer_01JB8D…",
+  "amount": 1200,
+  "tax": [{ "rate": 10, "amount": 660 },
+          { "rate": 8,  "amount": 540 }] }</span></code></pre>
+                <pre class="wire-view" data-view="ack"><code><span class="tok-ok">201</span> { "id": "pay_01JB8F…7Q",
+      "status": <span class="tok-s">"succeeded"</span>, "amount": <span class="tok-s">1200</span>,
+      "tax_included": { "10": <span class="tok-s">60</span>, "8": <span class="tok-s">40</span> } }
+
+<span class="tok-c"># acks.log, on the client, outside AWS</span>
+<span class="ack-line">seq=1042 key=pay-sato-1042 pay_01JB8F…7Q <span class="tok-ok">201</span></span></code></pre>
+                <pre class="wire-view" data-view="retry"><code><span class="tok-c"># Suppose the 201 never arrived. Same key, same body:</span>
+<span class="tok-k">POST</span> /v1/payments
+<span class="tok-k">Idempotency-Key:</span> pay-sato-1042
+
+<span class="tok-ok">201</span> { "id": "pay_01JB8F…7Q", … }  <span class="tok-c">← the saved one</span>
+
+<span class="tok-c"># Same key, different body: refused.</span>
+<span class="tok-c"># Never a second payment.</span></code></pre>
+                <pre class="wire-view" data-view="webhook"><code><span class="tok-k">POST</span> https://komorebi.example/kessai
+<span class="tok-k">Kessai-Signature:</span> t=1760929449,v1=5f0a…
+{ "id": "evt_01JB8G…",
+  "type": <span class="tok-s">"payment.succeeded"</span>,
+  "data": { "payment_id": "pay_01JB8F…7Q" } }
+
+<span class="attempt attempt-1">attempt 1 → <span class="tok-bad">503</span>  retry in 30 s</span>
+<span class="attempt attempt-2">attempt 2 → <span class="tok-ok">200</span>  delivered</span></code></pre>
+                <pre class="wire-view" data-view="recon"><code><span class="tok-k">reconcile</span>  CronJob, every night
+<span class="tok-c">settlement file  mock-bank/2026-10-20.csv</span>
+
+ledger entries    Σ = <span class="tok-s">¥0</span>          <span class="tok-ok">✓</span>
+top-ups vs bank   every one matched  <span class="tok-ok">✓</span>
+differences       <span class="tok-s">0</span>, no alert</code></pre>
+              </div>
+            </div>
+
+            <!-- Inside the database -->
+            <div class="panel panel-db">
+              <div class="panel-head"><span class="scene-tag" id="db-who">One transaction</span><span class="live"><span class="live-dot"></span>Aurora</span></div>
+              <div class="db-views">
+                <ol class="db-view tsteps active" data-view="tx">
+                  <li>BEGIN</li>
+                  <li>Lock Sato's wallet row</li>
+                  <li>¥5,000 covers ¥1,200 <span class="rtag">R3</span></li>
+                  <li>Insert payment pay_…7Q</li>
+                  <li>Two ledger entries, Σ 0 <span class="rtag">R2</span></li>
+                  <li>Save key and response <span class="rtag">R4</span></li>
+                  <li>Outbox: payment.succeeded <span class="rtag">R6</span></li>
+                  <li>COMMIT</li>
+                </ol>
+                <ol class="db-view tsteps" data-view="durable">
+                  <li>COMMIT reaches storage quorum</li>
+                  <li>4 of 6 copies, across 3 AZs</li>
+                  <li>201 sent to the app</li>
+                  <li>App logs seq 1042 outside AWS <span class="rtag">R5</span></li>
+                </ol>
+                <ol class="db-view tsteps" data-view="replay">
+                  <li>Key pay-sato-1042 found</li>
+                  <li>Same request body</li>
+                  <li>Return the saved 201</li>
+                  <li>Ledger untouched</li>
+                  <li>Different body? Refused <span class="rtag">R4</span></li>
+                </ol>
+                <ol class="db-view tsteps" data-view="outbox">
+                  <li>Outbox row committed</li>
+                  <li>outbox-relay → SQS FIFO</li>
+                  <li>webhook-sender signs it</li>
+                  <li>Attempt 1: 503 from merchant</li>
+                  <li>Attempt 2: 200, delivered</li>
+                  <li>Deduped by event id <span class="rtag">R6</span></li>
+                </ol>
+                <ol class="db-view tsteps" data-view="recon">
+                  <li>Read the bank's settlement file</li>
+                  <li>Σ every entry = ¥0 <span class="rtag">R2</span></li>
+                  <li>Top-ups match the bank <span class="rtag">R7</span></li>
+                  <li>Differences: 0, no alert</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scrolling steps -->
+        <ol class="steps-col" id="steps-col">
+          <li class="jstep" data-step="0">
+            <span class="jnum">1</span>
+            <p class="jwho">Sato's wallet app → Kessai</p>
+            <h3>The payment is asked for, with a key</h3>
+            <p>The app sends the amount in whole yen, with the tax split by rate: 10 % for the latte drunk in the café,
+              8 % for the cookies taken away. It also sends an <code>Idempotency-Key</code>, a name for this one attempt
+              to pay, so that a retry can never become a second payment.</p>
+            <code class="jcode">POST /v1/payments · Idempotency-Key</code>
+          </li>
+          <li class="jstep" data-step="1">
+            <span class="jnum">2</span>
+            <p class="jwho">Inside Kessai</p>
+            <h3>One transaction: all of it, or none of it</h3>
+            <p>Kessai locks Sato's wallet row, checks the balance covers ¥1,200, then writes everything in one PostgreSQL
+              transaction: the payment, two ledger entries that sum to zero, the key with the response it will return,
+              and the event for the merchant. If any part fails, none of it happened.</p>
+            <code class="jcode">SELECT … FOR UPDATE · COMMIT</code>
+          </li>
+          <li class="jstep" data-step="2">
+            <span class="jnum">3</span>
+            <p class="jwho">Kessai → the app</p>
+            <h3>201: acknowledged, and written down outside AWS</h3>
+            <p>Aurora confirms a commit only once four of its six storage copies, spread over three AZs, have it. So the
+              201 means the payment is durable. In a drill, the payment client runs outside AWS and logs every 201. From
+              that moment on, a payment missing from the database counts as lost.</p>
+            <code class="jcode">201 Created · acks.log</code>
+          </li>
+          <li class="jstep" data-step="3">
+            <span class="jnum">4</span>
+            <p class="jwho">The app → Kessai, again</p>
+            <h3>A retry gets the same answer, not a second charge</h3>
+            <p>Now suppose the 201 got lost: the phone dropped signal, or the database failed over mid-reply. The app
+              retries with the same key. Kessai finds the key, sees the same body, and replays the saved response. The
+              ledger does not move. The same key with a different body is refused.</p>
+            <code class="jcode">same key + same body → the saved response</code>
+          </li>
+          <li class="jstep" data-step="4">
+            <span class="jnum">5</span>
+            <p class="jwho">Kessai → the merchant</p>
+            <h3>The merchant hears about it, once in effect</h3>
+            <p>The event was committed with the payment, so it cannot be lost. A relay moves it to an SQS FIFO queue, and
+              a sender delivers a signed <code>payment.succeeded</code> webhook, retrying while the merchant answers 503.
+              Delivery is at least once, so the merchant deduplicates by event id.</p>
+            <code class="jcode">outbox → SQS FIFO → signed webhook</code>
+          </li>
+          <li class="jstep" data-step="5">
+            <span class="jnum">6</span>
+            <p class="jwho">Every night</p>
+            <h3>The books meet the bank</h3>
+            <p>A daily job compares the ledger with the mock bank's settlement file. Every entry ever written must still
+              sum to ¥0, and every top-up must match money the bank actually saw. Any difference raises an alert.</p>
+            <code class="jcode">reconcile · CronJob · daily</code>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============================== Why ============================== -->
+    <section class="section" id="why">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">Why it exists</p>
+          <h2>Anyone can draw a resilient system. This one gets measured.</h2>
+          <p class="section-lede">
+            Kessai exists to prove, with numbers, that a payments backend on Amazon EKS loses no acknowledged payment
+            and never charges twice. Payments make those numbers easy to read: losing a payment, or charging one twice,
+            is the clearest data-loss failure there is, so "0 payments lost" needs no explanation.
+          </p>
+        </div>
+
+        <div class="grid grid-4 reveal-group">
+          <article class="card reveal">
+            <div class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18M7 15h4"/></svg></div>
+            <h3>A reference payments service</h3>
+            <p>Top-ups, payments and refunds in yen, a double-entry ledger, signed webhooks and daily reconciliation,
+              following public rules: Stripe's API conventions and Japan's tax guidance.</p>
+          </article>
+          <article class="card reveal">
+            <div class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 18a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5H7z"/></svg></div>
+            <h3>Production-grade on AWS</h3>
+            <p>EKS over three Tokyo AZs, Aurora PostgreSQL, SQS, Argo CD and Terraform, a pilot-light copy in Osaka,
+              and backups in a separate, locked account.</p>
+          </article>
+          <article class="card reveal">
+            <div class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H12L11 22l8.5-11.5H12z"/></svg></div>
+            <h3>Broken on purpose</h3>
+            <p>12 failure drills, from killing pods to losing the whole Tokyo region, each modelled on a real incident
+              and injected with AWS Fault Injection Service.</p>
+          </article>
+          <article class="card reveal">
+            <div class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+            <h3>Scored with numbers</h3>
+            <p>Every drill counts the acknowledged payments lost (RPO) and times recovery (RTO), then gets a runbook and
+              a postmortem. Results replace targets here as they land.</p>
+          </article>
+        </div>
+
+        <div class="stats reveal-group">
+          <div class="stat reveal"><span class="stat-num" data-count="12">12</span><span class="stat-label">failure drills, each from a real incident</span></div>
+          <div class="stat reveal"><span class="stat-num" data-count="7">7</span><span class="stat-label">money rules checked by every test and drill</span></div>
+          <div class="stat reveal"><span class="stat-num" data-count="3" data-suffix=" + 1">3 + 1</span><span class="stat-label">Tokyo AZs, plus Osaka for disaster recovery</span></div>
+          <div class="stat reveal"><span class="stat-num" data-count="0.58" data-decimals="2" data-prefix="$" data-suffix="/h">$0.58/h</span><span class="stat-label">to run a Tokyo session, torn down after each one</span></div>
+        </div>
+
+        <div class="section-sub reveal">
+          <h3>The questions it answers</h3>
+          <p>The kind an interviewer asks about any system that holds money, each answered by a drill instead of a
+            slide.</p>
+        </div>
+        <div class="table-wrap reveal">
+          <table class="compare">
+            <thead><tr><th scope="col">The question</th><th scope="col">How Kessai answers it</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">"What happens when an AZ goes down?"</th><td>Drill 4: AWS FIS powers off a Tokyo AZ under load, and lost payments are counted.</td></tr>
+              <tr><th scope="row">"How do you know you lost no data?"</th><td>A client outside AWS logs every acknowledged payment and diffs that log against the database.</td></tr>
+              <tr><th scope="row">"Can a retry charge twice?"</th><td>Idempotency keys stored in the same transaction as the payment, tested during a database failover.</td></tr>
+              <tr><th scope="row">"Do your backups restore?"</th><td>Timed restores from a separate, locked backup account, including a ransomware drill.</td></tr>
+              <tr><th scope="row">"What if the whole region goes?"</th><td>An Aurora Global Database failover to Osaka, with lost payments counted and recovered from the snapshot.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="who-row reveal-group">
+          <article class="who reveal"><h3>Not a payment provider</h3><p>No real money, no card numbers (PCI DSS is out of scope) and no KYC. It follows real-world rules so that the drills mean something.</p></article>
+          <article class="who reveal"><h3>Small on purpose</h3><p>One Django codebase, three Deployments, one CronJob and one database. No Kafka, no Redis. Everything that must not be lost lives in Aurora.</p></article>
+          <article class="who reveal"><h3>Who it's for</h3><p>Engineers learning how payment systems stay correct when things fail, hiring teams who want proof instead of claims, and anyone following the build on CodeWithMuh.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== Money rules ============================== -->
+    <section class="section section-alt" id="rules">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">Money rules</p>
+          <h2>Seven rules that every test and every drill checks.</h2>
+          <p class="section-lede">
+            Payments go wrong in a few well-known ways: amounts that drift, balances that go negative, retries that
+            charge twice, events that vanish, books that disagree with the bank. Each rule closes one of them.
+          </p>
+        </div>
+
+        <ol class="rules reveal-group">
+          <li class="rule reveal"><span class="rnum">R1</span><div><h3>Integer yen</h3><p>No floats anywhere. The yen has no minor unit, so ¥1,200 is stored as the integer 1200.</p><p class="rule-how">Integer columns; floats banned in the money code.</p></div></li>
+          <li class="rule reveal"><span class="rnum">R2</span><div><h3>Double-entry</h3><p>Every movement writes balanced entries. Add up every entry ever written and you get ¥0.</p><p class="rule-how">Written in the same transaction as the movement; checked in tests and after every drill.</p></div></li>
+          <li class="rule reveal"><span class="rnum">R3</span><div><h3>Never below ¥0</h3><p>A wallet cannot spend money it does not have, even when 200 payments arrive at once.</p><p class="rule-how">A row lock or a conditional update in the same transaction.</p></div></li>
+          <li class="rule reveal"><span class="rnum">R4</span><div><h3>One key, one payment</h3><p>Same key and body: the saved response. Same key, different body: an error. Keys are kept 24 hours.</p><p class="rule-how">The key is stored in the same transaction as the payment.</p></div></li>
+          <li class="rule reveal"><span class="rnum">R5</span><div><h3>Nothing acknowledged is lost</h3><p>No 201 disappears when a pod, a node or a whole AZ fails.</p><p class="rule-how">Aurora Multi-AZ; measured by the client log.</p></div></li>
+          <li class="rule reveal"><span class="rnum">R6</span><div><h3>One event per payment</h3><p>Exactly one event, delivered at least once. Merchants deduplicate by event id.</p><p class="rule-how">A transactional outbox and a delivery table in the database.</p></div></li>
+          <li class="rule reveal"><span class="rnum">R7</span><div><h3>The ledger matches the bank</h3><p>Checked every day. Any difference raises an alert.</p><p class="rule-how">A daily reconciliation job against the bank's settlement file.</p></div></li>
+        </ol>
+
+        <div class="race reveal" id="race">
+          <div class="race-head">
+            <p class="eyebrow">Try it · R3 under pressure</p>
+            <h3>200 payments at once, money for 50.</h3>
+            <p>The test that guards R3 fires 200 parallel ¥100 payments at a wallet holding ¥5,000. Exactly 50 may
+              succeed. Run it with the row lock, then without it, and watch the balance.</p>
+            <div class="race-controls">
+              <div class="seg" role="group" aria-label="Locking">
+                <button type="button" class="seg-btn" data-lock="on" aria-pressed="true">With a row lock</button>
+                <button type="button" class="seg-btn" data-lock="off" aria-pressed="false">Without a lock</button>
+              </div>
+              <button type="button" class="btn btn-primary btn-run" id="race-run">Fire 200 payments</button>
+            </div>
+            <p class="fine">A simulation of the test, to show why the lock matters. The real test runs against
+              PostgreSQL in CI once the payments core lands.</p>
+          </div>
+          <div class="race-board">
+            <div class="race-stats">
+              <div><span class="rs-num" id="race-bal">¥5,000</span><span class="rs-label">balance</span></div>
+              <div><span class="rs-num" id="race-ok">0</span><span class="rs-label">succeeded</span></div>
+              <div><span class="rs-num" id="race-no">0</span><span class="rs-label">declined</span></div>
+            </div>
+            <div class="race-grid" id="race-grid" aria-hidden="true"></div>
+            <ul class="race-legend" aria-hidden="true">
+              <li><span class="cell c-ok"></span>paid</li>
+              <li><span class="cell c-no"></span>declined</li>
+              <li><span class="cell c-over"></span>paid with money that wasn't there</li>
+            </ul>
+            <p class="race-verdict" id="race-verdict" aria-live="polite">Press "Fire 200 payments".</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== Architecture ============================== -->
+    <section class="section" id="architecture">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">Architecture</p>
+          <h2>One database holds everything that must not be lost.</h2>
+          <p class="section-lede">
+            One Django codebase runs as three Deployments and a CronJob on EKS. Payments, the ledger, idempotency keys,
+            the outbox and webhook deliveries all live in Aurora, so "where can data be lost?" has one answer. Pick
+            something and watch where it goes.
+          </p>
+        </div>
+
+        <div class="trace reveal">
+          <div class="trace-controls" role="tablist" aria-label="Trace something through the system">
+            <button role="tab" class="trace-btn" data-trace="pay" aria-selected="true"><span class="swatch swatch-pay"></span>Trace a payment</button>
+            <button role="tab" class="trace-btn" data-trace="event" aria-selected="false"><span class="swatch swatch-event"></span>Trace a webhook</button>
+            <button role="tab" class="trace-btn" data-trace="recon" aria-selected="false"><span class="swatch swatch-recon"></span>Trace the nightly check</button>
+            <button role="tab" class="trace-btn" data-trace="dr" aria-selected="false"><span class="swatch swatch-dr"></span>Trace a recovery copy</button>
+          </div>
+          <div class="trace-caption" aria-live="polite">
+            <span class="trace-step" id="trace-step">1 / 6</span>
+            <span id="trace-text">The payment client, outside AWS, sends POST /v1/payments with an Idempotency-Key.</span>
+          </div>
+          <div class="figure-scroll">
+            <svg class="arch-svg" id="arch" viewBox="0 0 1000 500" role="img" aria-labelledby="arch-title arch-desc" data-trace="pay">
+              <title id="arch-title">Kessai architecture</title>
+              <desc id="arch-desc">A payment client outside AWS calls an Application Load Balancer in Tokyo behind a Route 53 failover record. The api pods, spread over three Availability Zones, write to an Aurora PostgreSQL writer with a reader in another zone. outbox-relay moves outbox rows to an SQS FIFO queue; webhook-sender delivers signed webhooks to the merchant and marks deliveries in Aurora. A daily reconcile job compares the ledger with a mock bank's settlement files. AWS Backup copies recovery points to a locked vault in a separate account in Osaka, and on disaster-recovery days an Aurora Global Database secondary and a pilot-light EKS cluster run in Osaka.</desc>
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="arrow-head"/></marker>
+                <marker id="arrow-pay" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="arrow-pay"/></marker>
+                <marker id="arrow-event" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="arrow-event"/></marker>
+                <marker id="arrow-recon" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="arrow-recon"/></marker>
+                <marker id="arrow-dr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="arrow-dr"/></marker>
+              </defs>
+
+              <rect class="zone zone-tokyo" x="200" y="30" width="590" height="450" rx="16"/>
+              <text class="zone-label" x="220" y="470">TOKYO · ap-northeast-1 · EKS over three AZs</text>
+              <rect class="zone zone-osaka" x="815" y="30" width="175" height="232" rx="16"/>
+              <text class="zone-label" x="830" y="252">OSAKA · DR DAYS ONLY</text>
+              <rect class="zone zone-backup" x="815" y="280" width="175" height="200" rx="16"/>
+              <text class="zone-label" x="830" y="470">BACKUP ACCOUNT</text>
+
+              <g class="edges">
+                <path id="e-client-alb" data-t="pay" d="M170 125 H223" marker-end="url(#arrow)"/>
+                <path id="e-alb-api" data-t="pay" d="M355 125 H383" marker-end="url(#arrow)"/>
+                <path id="e-api-writer" data-t="pay" d="M535 125 H583" marker-end="url(#arrow)"/>
+                <path id="e-writer-reader" data-t="pay" d="M670 148 V188" marker-end="url(#arrow)"/>
+                <path id="e-api-client" data-t="pay" d="M460 93 V66 H95 V91" marker-end="url(#arrow)"/>
+                <path id="e-db-relay" data-t="event" d="M563 222 H537" marker-end="url(#arrow)"/>
+                <path id="e-relay-sqs" data-t="event" d="M460 252 V298" marker-end="url(#arrow)"/>
+                <path id="e-sqs-sender" data-t="event" d="M460 360 V388" marker-end="url(#arrow)"/>
+                <path id="e-sender-merchant" data-t="event" d="M383 420 H172" marker-end="url(#arrow)"/>
+                <path id="e-sender-db" data-t="event" d="M535 420 H680 V254" marker-end="url(#arrow)"/>
+                <path id="e-bank-recon" data-t="recon" d="M170 330 H223" marker-end="url(#arrow)"/>
+                <path id="e-db-recon" data-t="recon" d="M563 172 H370 V330 H357" marker-end="url(#arrow)"/>
+                <path id="e-db-global" data-t="pay dr" class="edge-dr" d="M775 125 H828" marker-end="url(#arrow)"/>
+                <path id="e-db-vault" data-t="dr" d="M775 236 H802 V370 H828" marker-end="url(#arrow)"/>
+              </g>
+              <g class="edge-labels">
+                <text data-t="pay" x="196" y="116" text-anchor="middle">HTTPS</text>
+                <text data-t="pay" x="278" y="58" text-anchor="middle">201 → acks.log</text>
+                <text data-t="pay" x="678" y="172" text-anchor="start">Multi-AZ</text>
+                <text data-t="event" x="278" y="411" text-anchor="middle">signed webhook</text>
+                <text data-t="event" x="688" y="330" text-anchor="start">delivered</text>
+                <text data-t="pay dr" x="801" y="116" text-anchor="middle">Global DB</text>
+                <text data-t="dr" x="782" y="304" text-anchor="end">AWS Backup</text>
+                <text data-t="recon" x="466" y="185" text-anchor="middle">reads the ledger</text>
+              </g>
+
+              <g class="node node-actor" id="n-client" data-t="pay"><rect x="20" y="93" width="150" height="64" rx="12"/><text x="95" y="121">Payment client</text><text class="sub" x="95" y="140">outside AWS · acks.log</text></g>
+              <g class="node node-actor" id="n-bank" data-t="recon"><rect x="20" y="300" width="150" height="60" rx="12"/><text x="95" y="326">Mock bank</text><text class="sub" x="95" y="344">settlement files · S3</text></g>
+              <g class="node node-actor" id="n-merchant" data-t="event"><rect x="20" y="390" width="150" height="60" rx="12"/><text x="95" y="416">Merchant</text><text class="sub" x="95" y="434">merchant-sim · dedupes</text></g>
+
+              <g class="node" id="n-alb" data-t="pay"><rect x="225" y="93" width="130" height="64" rx="12"/><text x="290" y="121">ALB</text><text class="sub" x="290" y="140">Route 53 failover</text></g>
+              <g class="node" id="n-api" data-t="pay"><rect x="385" y="93" width="150" height="64" rx="12"/><text x="460" y="121">api</text><text class="sub" x="460" y="140">≥ 3 pods · 3 AZs</text></g>
+              <g class="node" id="n-relay" data-t="event"><rect x="385" y="192" width="150" height="60" rx="12"/><text x="460" y="218">outbox-relay</text><text class="sub" x="460" y="236">outbox rows → SQS</text></g>
+              <g class="node node-queue" id="n-sqs" data-t="event"><rect x="385" y="300" width="150" height="60" rx="12"/><text x="460" y="326">SQS FIFO</text><text class="sub" x="460" y="344">+ dead-letter queue</text></g>
+              <g class="node" id="n-sender" data-t="event"><rect x="385" y="390" width="150" height="60" rx="12"/><text x="460" y="416">webhook-sender</text><text class="sub" x="460" y="434">signed · retried</text></g>
+              <g class="node" id="n-recon" data-t="recon"><rect x="225" y="300" width="130" height="60" rx="12"/><text x="290" y="326">reconcile</text><text class="sub" x="290" y="344">CronJob · daily</text></g>
+
+              <g class="node node-cluster" id="n-aurora" data-t="pay event recon dr">
+                <rect x="565" y="70" width="210" height="182" rx="14"/>
+                <text class="cluster-title" x="670" y="91">AURORA POSTGRESQL</text>
+                <g class="inner node-store" id="n-writer"><rect x="585" y="102" width="170" height="46" rx="10"/><text x="670" y="121">writer</text><text class="sub" x="670" y="138">AZ a · system of record</text></g>
+                <g class="inner node-store" id="n-reader"><rect x="585" y="190" width="170" height="46" rx="10"/><text x="670" y="209">reader</text><text class="sub" x="670" y="226">AZ b · failover target</text></g>
+              </g>
+
+              <g class="node node-dr" id="n-global" data-t="pay dr"><rect x="830" y="93" width="145" height="64" rx="12"/><text x="902" y="121">Aurora Global</text><text class="sub" x="902" y="140">secondary</text></g>
+              <g class="node node-dr" id="n-pilot" data-t="dr"><rect x="830" y="172" width="145" height="60" rx="12"/><text x="902" y="198">EKS · Argo CD</text><text class="sub" x="902" y="216">pilot light</text></g>
+              <g class="node node-dr" id="n-vault" data-t="dr"><rect x="830" y="340" width="145" height="60" rx="12"/><text x="902" y="366">Backup vault</text><text class="sub" x="902" y="384">Vault Lock · Osaka</text></g>
+
+              <g id="packets"></g>
+            </svg>
+          </div>
+          <p class="fine">
+            This is the target design. Locally today: the api and PostgreSQL, with ElasticMQ standing in for SQS. Dashed
+            boxes exist only on DR days. Everything Kessai cannot lose sits inside the Aurora box.
+            <a href="https://github.com/codewithmuh/kessai-payments/blob/main/docs/scope.md#architecture">Read the full design</a>.
+          </p>
+        </div>
+
+        <div class="table-wrap reveal">
+          <table class="compare">
+            <thead><tr><th scope="col">Choice</th><th scope="col">Why</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Aurora is the only system of record</th><td>Payments, ledger, keys, outbox and deliveries commit together. When something is lost, there is one place to look.</td></tr>
+              <tr><th scope="row">SQS FIFO instead of Kafka</th><td>The queue only carries events that are already safe in Aurora. It can be lost and refilled from the outbox.</td></tr>
+              <tr><th scope="row">No Redis</th><td>Nothing to keep in step with the database. Idempotency keys live in the same transaction as the payment.</td></tr>
+              <tr><th scope="row">A pilot light in Osaka</th><td>A second full region costs money every hour. The Global Database needs r-class instances, so Osaka runs only on DR days.</td></tr>
+              <tr><th scope="row">Failing over is a human decision</th><td>Route 53 health checks are ready, but moving a whole region is a business call. It is made by a person, and logged.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <details class="faq-inline reveal">
+          <summary>If Tokyo is lost, what happens to the events still in Tokyo's queue?</summary>
+          <p>They don't matter. The outbox and the delivery table replicate to Osaka with the payments. The Osaka relay
+            re-sends every event the delivery table hasn't marked as delivered, and merchants deduplicate by event id.</p>
+        </details>
+      </div>
+    </section>
+
+    <!-- ============================== Measuring ============================== -->
+    <section class="section section-alt" id="measure">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">How it's scored</p>
+          <h2>Counted from outside, where a failure can't hide it.</h2>
+          <p class="section-lede">
+            A system can't be trusted to report its own data loss. So the payment client runs outside AWS and keeps its
+            own record of every payment Kessai acknowledged. After each drill, that record is compared with the
+            database, row by row.
+          </p>
+        </div>
+
+        <div class="measure-grid">
+          <ol class="mlist reveal-group">
+            <li class="reveal"><strong>Pay from outside.</strong> The client sends payments with a sequence number and an idempotency key, from a machine outside AWS.</li>
+            <li class="reveal"><strong>Write down every 201.</strong> Each acknowledged payment is appended to a local file. Nothing else counts.</li>
+            <li class="reveal"><strong>Break something.</strong> AWS FIS injects the drill's failure while the client keeps paying.</li>
+            <li class="reveal"><strong>Diff the log against the database.</strong> Acknowledged but missing means lost. Then the money rules are checked again.</li>
+          </ol>
+
+          <div class="diff reveal" id="diff" data-mode="pass">
+            <div class="seg" role="group" aria-label="Example drill">
+              <button type="button" class="seg-btn" data-mode="pass" aria-pressed="true">A drill that passes</button>
+              <button type="button" class="seg-btn" data-mode="fail" aria-pressed="false">A drill that loses data</button>
+            </div>
+            <div class="diff-cols">
+              <div class="diff-col">
+                <p class="scene-tag">acks.log · outside AWS</p>
+                <ol>
+                  <li><span>1041</span><span>pay_…3K</span><span class="ok-mark">201</span></li>
+                  <li><span>1042</span><span>pay_…7Q</span><span class="ok-mark">201</span></li>
+                  <li><span>1043</span><span>pay_…9D</span><span class="ok-mark">201</span></li>
+                  <li class="lossy"><span>1044</span><span>pay_…2M</span><span class="ok-mark">201</span></li>
+                  <li class="lossy"><span>1045</span><span>pay_…5T</span><span class="ok-mark">201</span></li>
+                  <li><span>1046</span><span>pay_…8W</span><span class="ok-mark">201</span></li>
+                </ol>
+              </div>
+              <div class="diff-col">
+                <p class="scene-tag">payments · Aurora</p>
+                <ol>
+                  <li><span>1041</span><span>pay_…3K</span><span class="ok-mark">found</span></li>
+                  <li><span>1042</span><span>pay_…7Q</span><span class="ok-mark">found</span></li>
+                  <li><span>1043</span><span>pay_…9D</span><span class="ok-mark">found</span></li>
+                  <li class="lossy"><span>1044</span><span class="gone">pay_…2M</span><span class="ok-mark"><span class="when-pass">found</span><span class="when-fail">missing</span></span></li>
+                  <li class="lossy"><span>1045</span><span class="gone">pay_…5T</span><span class="ok-mark"><span class="when-pass">found</span><span class="when-fail">missing</span></span></li>
+                  <li><span>1046</span><span>pay_…8W</span><span class="ok-mark">found</span></li>
+                </ol>
+              </div>
+            </div>
+            <p class="diff-result"><span class="when-pass"><strong>Lost: 0.</strong> Every acknowledged payment is in the database. RPO = 0.</span><span class="when-fail"><strong>Lost: 2.</strong> RPO = 2 payments, covering the 0.4 s between them. The drill fails, and the postmortem starts.</span></p>
+            <p class="fine">An example of the check, not a drill result.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-2 reveal-group rpo-rto">
+          <article class="card reveal">
+            <p class="eyebrow">RPO · how much was lost</p>
+            <p>The number of acknowledged payments missing from the database, plus the span of time they cover. The
+              target for losing a pod, a node or a whole AZ is zero.</p>
+          </article>
+          <article class="card reveal">
+            <p class="eyebrow">RTO · how long it was broken</p>
+            <p>From the moment the fault is injected to the first acknowledged payment through the public endpoint, split
+              into its parts:</p>
+            <div class="rto-bar" aria-label="RTO is split into database promotion, DNS and pod readiness">
+              <span class="rto-seg rto-fault">fault</span><span class="rto-seg rto-db">database promotion</span><span class="rto-seg rto-dns">DNS</span><span class="rto-seg rto-pods">pods ready</span><span class="rto-seg rto-ok">first 201</span>
+            </div>
+          </article>
+        </div>
+
+        <div class="table-wrap reveal">
+          <table class="targets">
+            <caption>Recovery targets. These are design targets, not results.</caption>
+            <thead><tr><th scope="col">Failure</th><th scope="col">RPO target</th><th scope="col">RTO target</th><th scope="col">Mechanism</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Pod, node or AZ lost</th><td class="num">0 lost</td><td>Writer back ≤ 60 s; API errors &lt; 1 % for &lt; 2 min</td><td>Aurora Multi-AZ, spread pods and PDBs, idempotent retries</td></tr>
+              <tr><th scope="row">Tokyo region lost</th><td class="num">≤ 1 min</td><td>≤ 30 min (pilot light)</td><td>Aurora Global Database, Argo CD, Route 53 failover; every lost payment recovered from the failover snapshot</td></tr>
+              <tr><th scope="row">Bad delete or corruption</th><td class="num">≤ 5 min</td><td>≤ 60 min</td><td>Aurora point-in-time restore</td></tr>
+              <tr><th scope="row">Webhook events, any of the above</th><td class="num">0</td><td>Minutes</td><td>Re-sent from the outbox and the delivery table</td></tr>
+              <tr><th scope="row">Cluster lost</th><td class="num">Last commit</td><td>≤ 30 min</td><td>Argo CD, and AWS Backup for EKS (compared with Velero)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== Drills ============================== -->
+    <section class="section" id="drills">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">The drills</p>
+          <h2>Twelve ways to break it, most from real incidents.</h2>
+          <p class="section-lede">Each drill injects a real failure under load, counts what was lost, and checks the money
+            rules again. Each gets a runbook, a results row and a postmortem in COE format: impact, timeline, metrics,
+            5 Whys, and action items with owners and dates. Pick one.</p>
+        </div>
+
+        <div class="drills reveal">
+          <div class="drill-list" role="tablist" aria-label="Failure drills">
+            <button role="tab" data-drill="1" aria-selected="false"><span class="dn">1</span>Kill pods mid-traffic</button>
+            <button role="tab" data-drill="2" aria-selected="false"><span class="dn">2</span>Merchant down for 30 min</button>
+            <button role="tab" data-drill="3" aria-selected="false"><span class="dn">3</span>Deploy, drain, upgrade</button>
+            <button role="tab" data-drill="4" aria-selected="true"><span class="dn">4</span>Lose a Tokyo AZ</button>
+            <button role="tab" data-drill="5" aria-selected="false"><span class="dn">5</span>Database failover</button>
+            <button role="tab" data-drill="6" aria-selected="false"><span class="dn">6</span>DELETE on the ledger</button>
+            <button role="tab" data-drill="7" aria-selected="false"><span class="dn">7</span>Whole cluster lost</button>
+            <button role="tab" data-drill="8" aria-selected="false"><span class="dn">8</span>Ransomware vs backups</button>
+            <button role="tab" data-drill="9" aria-selected="false"><span class="dn">9</span>Planned move to Osaka</button>
+            <button role="tab" data-drill="10" aria-selected="false"><span class="dn">10</span>Tokyo region lost</button>
+            <button role="tab" data-drill="11" aria-selected="false"><span class="dn">11</span>Bad release, both regions</button>
+            <button role="tab" data-drill="12" aria-selected="false"><span class="dn">12</span>Month-end peak + batch</button>
+          </div>
+          <div class="drill-panel" role="tabpanel" aria-live="polite">
+            <div class="drill-top">
+              <h3 id="d-title">Drill 4 · Lose a Tokyo AZ</h3>
+              <div class="drill-pills"><span class="pill pill-plan" id="d-phase">Phase 1</span><span class="pill pill-wip" id="d-status">FIS template written</span></div>
+            </div>
+            <ul class="gd-chain" aria-label="Component health during the drill">
+              <li data-c="api"><span class="gd-light"></span>api</li>
+              <li data-c="workers"><span class="gd-light"></span>Workers</li>
+              <li data-c="aurora"><span class="gd-light"></span>Aurora</li>
+              <li data-c="sqs"><span class="gd-light"></span>SQS</li>
+              <li data-c="merchant"><span class="gd-light"></span>Merchant</li>
+              <li data-c="region"><span class="gd-light"></span>Tokyo region</li>
+              <li data-c="backups"><span class="gd-light"></span>Backups</li>
+            </ul>
+            <dl class="drill-facts">
+              <div><dt>Models</dt><dd id="d-models">The 2019 apne1-az4 cooling failure</dd></div>
+              <div><dt>Injected with</dt><dd id="d-inject">FIS AZ Power Interruption (shortened) and zonal autoshift, plus a gray-failure variant</dd></div>
+              <div><dt>Pass target</dt><dd id="d-pass">0 lost; errors &lt; 1 % for &lt; 2 min; no new nodes needed</dd></div>
+            </dl>
+            <div class="drill-answer">
+              <p class="scene-tag">What the design should do</p>
+              <p id="d-answer">The load balancer and zonal autoshift move traffic out of the AZ, Aurora promotes the reader if the writer was there, and pods already running in the other two AZs carry the load.</p>
+            </div>
+            <div class="drill-result">
+              <span class="scene-tag">Measured</span>
+              <span class="dr-cell"><b>Lost</b> <span>—</span></span>
+              <span class="dr-cell"><b>RTO</b> <span>—</span></span>
+              <span class="dr-note" id="d-result">Not run yet</span>
+            </div>
+          </div>
+        </div>
+
+        <details class="faq-inline reveal all-drills">
+          <summary>See all 12 drills as one table</summary>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th scope="col">#</th><th scope="col">Drill (what it models)</th><th scope="col">Injected with</th><th scope="col">Pass target</th></tr></thead>
+              <tbody>
+                <tr><td class="num">1</td><td>Kill API and worker pods mid-traffic</td><td>FIS <code>aws:eks:pod-delete</code></td><td>0 lost; no duplicate effects at the merchant</td></tr>
+                <tr><td class="num">2</td><td>Merchant endpoint down for 30 min</td><td>merchant-sim returns 503</td><td>Retries, DLQ, replay: every event takes effect once</td></tr>
+                <tr><td class="num">3</td><td>Deploy, node drain and EKS upgrade under load</td><td>Rollout restart, Karpenter consolidation, version upgrade</td><td>0 non-2xx responses</td></tr>
+                <tr><td class="num">4</td><td>Lose a Tokyo AZ (the 2019 apne1-az4 cooling failure)</td><td>FIS AZ Power Interruption (shortened) + zonal autoshift; a gray-failure variant</td><td>0 lost; errors &lt; 1 % for &lt; 2 min; no new nodes needed</td></tr>
+                <tr><td class="num">5</td><td>Database failover while clients retry the same key</td><td>FIS <code>aws:rds:failover-db-cluster</code> + same-key retries</td><td>0 lost; one payment per key; writer back ≤ 60 s</td></tr>
+                <tr><td class="num">6</td><td>Someone runs <code>DELETE</code> on the ledger</td><td>Aurora point-in-time restore, then reconcile</td><td>RPO ≤ 5 min, RTO ≤ 60 min, ledger sums to 0</td></tr>
+                <tr><td class="num">7</td><td>Whole cluster lost</td><td>Argo CD + AWS Backup for EKS (vs Velero)</td><td>≤ 30 min</td></tr>
+                <tr><td class="num">8</td><td>Ransomware tries to delete the backups (Askul 2025)</td><td>Prod-account admin role tries to delete recovery points</td><td>0 recovery points deleted; restore time measured</td></tr>
+                <tr><td class="num">9</td><td>Planned move to Osaka</td><td>Aurora Global switchover + Argo CD + Route 53</td><td>RPO 0; ≤ 30 min end to end</td></tr>
+                <tr><td class="num">10</td><td>Tokyo region "lost"</td><td>FIS cross-region connectivity, then an unplanned global failover</td><td>Lost payments counted, then all recovered from the snapshot; ≤ 30 min</td></tr>
+                <tr><td class="num">11</td><td>One bad release breaks both regions (Zengin 2023)</td><td>Promote a broken config</td><td>Osaka never receives it; rollback to the last good version</td></tr>
+                <tr><td class="num">12</td><td>Month-end peak with a batch job running (Mizuho 2021)</td><td>k6 at 3–5× load + reconciliation running</td><td>Payment SLO holds; the batch job slows down instead</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ============================== What's built ============================== -->
+    <section class="section section-alt" id="built">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">What's built</p>
+          <h2>What works today, and what comes next.</h2>
+          <p class="section-lede">Nothing on this page is marked as working unless it is written, tested and in the
+            repository. Infrastructure that is written and checked but has never touched AWS says so.</p>
+          <ul class="legend" aria-label="Legend">
+            <li><span class="pill pill-ok">Works today</span></li>
+            <li><span class="pill pill-wip">Written, not applied</span></li>
+            <li><span class="pill pill-next">Next</span></li>
+            <li><span class="pill pill-plan">Planned</span></li>
+          </ul>
+        </div>
+
+        <div class="features reveal-group">
+          <div class="feature reveal"><span class="pill pill-ok">Works today</span><h3>Service plumbing</h3><p>Liveness, readiness and Prometheus metrics, JSON logs with a request id, JSON errors, and graceful shutdown on SIGTERM.</p></div>
+          <div class="feature reveal"><span class="pill pill-ok">Works today</span><h3>Database outages handled</h3><p>503 <code>database_unavailable</code> with Retry-After, never a crash. Readiness waits out a grace period, so a failover doesn't empty the load balancer.</p></div>
+          <div class="feature reveal"><span class="pill pill-ok">Works today</span><h3>CI on every pull request</h3><p>Lint, types, tests against PostgreSQL 17 with an 80 % coverage gate, migration checks, secret and vulnerability scans, and an image smoke test.</p></div>
+          <div class="feature reveal"><span class="pill pill-ok">Works today</span><h3>Signed releases</h3><p>release-please versions and changelog, images on GHCR signed with cosign (keyless), and an SBOM on every release.</p></div>
+          <div class="feature reveal"><span class="pill pill-ok">Works today</span><h3>Local stack</h3><p><code>make up</code> runs PostgreSQL 17, ElasticMQ as a local SQS with a FIFO queue and DLQ, and the API, hardened like production.</p></div>
+          <div class="feature reveal"><span class="pill pill-wip">Written, not applied</span><h3>Terraform for AWS</h3><p>Six stacks: bootstrap, platform (VPC, EKS, Karpenter), data (Aurora, SQS, S3), FIS, backup plan and backup account. Checked in CI with fmt, validate, tflint and checkov.</p></div>
+          <div class="feature reveal"><span class="pill pill-wip">Written, not applied</span><h3>Drill templates</h3><p>Drills 1, 4 and 5 as AWS FIS experiments, with a stop condition that halts a drill when the error rate runs too high.</p></div>
+          <div class="feature reveal"><span class="pill pill-next">Next</span><h3>Payments core</h3><p>Wallets, the ledger, idempotency keys and money rules R1–R4, with concurrency and ledger tests.</p></div>
+          <div class="feature reveal"><span class="pill pill-next">Next</span><h3>Signed webhooks</h3><p>Outbox → SQS → signed webhooks with retries, a DLQ and replay, plus merchant-sim. Drill 2 runs locally.</p></div>
+          <div class="feature reveal"><span class="pill pill-next">Next</span><h3>Daily reconciliation</h3><p>The ledger checked every night against a mock bank's settlement file.</p></div>
+          <div class="feature reveal"><span class="pill pill-next">Next</span><h3>Payment client</h3><p>Logs every acknowledged payment and runs the lost-payment check after a drill.</p></div>
+          <div class="feature reveal"><span class="pill pill-next">Next</span><h3>Decision records</h3><p>ADRs for integer yen and double-entry, Aurora as the system of record, and SQS instead of Kafka.</p></div>
+          <div class="feature reveal"><span class="pill pill-plan">Planned</span><h3>Tokyo on EKS</h3><p>Three AZs, Karpenter, Argo CD, External Secrets; Prometheus, Grafana and OpenTelemetry; SLOs with burn-rate alerts.</p></div>
+          <div class="feature reveal"><span class="pill pill-plan">Planned</span><h3>Backups that restore</h3><p>AWS Backup into a Vault-Locked vault in a separate account, and S3 Object Lock. Restores are timed, not assumed.</p></div>
+          <div class="feature reveal"><span class="pill pill-plan">Planned</span><h3>Osaka</h3><p>Aurora Global Database on DR days, a pilot-light cluster, and Route 53 failover.</p></div>
+          <div class="feature reveal"><span class="pill pill-plan">Planned</span><h3>The case study</h3><p>The measured results table for all 12 drills, with write-ups and videos.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== Run it ============================== -->
+    <section class="section" id="run">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">Run it</p>
+          <h2>Start on a laptop. Rent the cloud by the hour.</h2>
+          <p class="section-lede">Everything that runs locally runs with the same hardening as production. AWS is created
+            for a working session and destroyed after it, so it costs money only while someone is using it.</p>
+        </div>
+        <div class="grid grid-3 reveal-group">
+          <article class="card card-lg deploy reveal">
+            <span class="pill pill-ok">Works today</span>
+            <h3>On your laptop</h3>
+            <p>Needs uv, pre-commit and Docker, or just the Dev Container.</p>
+            <div class="code code-sm">
+              <button class="copy" type="button">Copy</button>
+<pre><code data-lang="bash">make setup   # dependencies and git hooks
+make check   # lint, types, tests: same as CI
+make up      # PostgreSQL 17, local SQS, API on :8000
+
+curl localhost:8000/healthz   # {"status": "ok"}
+make down</code></pre>
+            </div>
+          </article>
+          <article class="card card-lg deploy reveal">
+            <span class="pill pill-wip">Written, not applied</span>
+            <h3>Tokyo, one session at a time</h3>
+            <p>About $0.58 an hour, roughly $4.60 for an 8-hour session. A $10 daily and a $100 monthly budget watch
+              it, and the teardown order is scripted.</p>
+            <div class="code code-sm">
+<pre><code data-lang="bash">make aws-up     # platform, then data (~25 min)
+make aws-fis    # drill templates
+make aws-down   # after every session</code></pre>
+            </div>
+          </article>
+          <article class="card card-lg deploy reveal">
+            <span class="pill pill-plan">Planned</span>
+            <h3>Osaka DR days</h3>
+            <p>The Global Database needs r-class instances, so Osaka exists only on DR days, at about $9–12 each. Run
+              only while it's being worked on, the whole project should cost roughly $150–250.</p>
+          </article>
+        </div>
+
+        <div class="section-sub reveal">
+          <h3>What every process promises</h3>
+          <p>The runtime contract the drills lean on. It works today.</p>
+        </div>
+        <div class="table-wrap reveal">
+          <table class="compare">
+            <thead><tr><th scope="col">Endpoint or behaviour</th><th scope="col">Meaning</th></tr></thead>
+            <tbody>
+              <tr><th scope="row"><code>GET /healthz</code></th><td>Liveness: the process is up. It never checks dependencies.</td></tr>
+              <tr><th scope="row"><code>GET /readyz</code></th><td>Readiness: 503 while shutting down, or after the database has failed for longer than the grace period (120 s by default).</td></tr>
+              <tr><th scope="row"><code>GET /metrics</code></th><td>Prometheus: requests, latency and database outages, by route and status.</td></tr>
+              <tr><th scope="row">Database outage</th><td><code>503 database_unavailable</code> with <code>Retry-After</code>. Payments are safe to retry with the same Idempotency-Key.</td></tr>
+              <tr><th scope="row"><code>SIGTERM</code></th><td>Fail readiness, finish in-flight requests (≤ 20 s), exit.</td></tr>
+              <tr><th scope="row">Image</th><td>Non-root, read-only filesystem, built-in healthcheck, signed with cosign, SBOM on every release.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== Japan ============================== -->
+    <section class="section section-alt japan" id="japan">
+      <div class="container japan-grid">
+        <div class="reveal">
+          <p class="eyebrow">Built for Japan</p>
+          <h2>Japanese rules, Japanese incidents. <span lang="ja" class="ja-sub">日本の決済のルールで</span></h2>
+          <p class="section-lede">Kessai is the kind of wallet PayPay, Merpay and Stripe run. It follows public rules rather
+            than invented ones, and most of its drills are modelled on failures that really happened in Japan.</p>
+        </div>
+        <ul class="checks reveal-group">
+          <li class="reveal"><strong>Yen has no minor unit.</strong> ¥1,200 is the integer 1200. There are no floats anywhere in the money code.</li>
+          <li class="reveal"><strong>Tax by rate.</strong> Each payment records its 10 % standard and 8 % reduced amounts, as on a qualified invoice (<span lang="ja">インボイス制度</span>, since 2023-10-01). The rounding rule (<span lang="ja">端数処理</span>) comes from the National Tax Agency's guidance, not a guess.</li>
+          <li class="reveal"><strong>Data stays in Japan.</strong> Tokyo runs everything; disaster recovery and backups go only to Osaka.</li>
+          <li class="reveal"><strong>AZs pinned by ID.</strong> apne1-az1, az2 and az4, by ID rather than by name, because AZ names map to different zones in different accounts.</li>
+          <li class="reveal"><strong>Real incidents.</strong> The 2019 apne1-az4 cooling failure, Zengin 2023, Mizuho 2021 and Askul 2025 each become a drill.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============================== Roadmap ============================== -->
+    <section class="section" id="roadmap">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">Roadmap</p>
+          <h2>Built in public, phase by phase.</h2>
+          <p class="section-lede">Every phase ends with measured results, not claims. Released as semantic versions with a
+            changelog.</p>
+        </div>
+        <ol class="timeline reveal-group">
+          <li class="phase phase-now reveal">
+            <span class="phase-tag">Phase 0 · Now</span>
+            <h3>The service, locally</h3>
+            <p>The payments core, webhooks, reconciliation and the payment client, all on a laptop. Drill 2 runs
+              locally.</p>
+          </li>
+          <li class="phase reveal">
+            <span class="phase-tag">Phase 1</span>
+            <h3>Tokyo</h3>
+            <p>EKS over three AZs, Argo CD, observability and SLOs. Drills 1, 3, 4, 5 and 12, with postmortems.</p>
+          </li>
+          <li class="phase reveal">
+            <span class="phase-tag">Phase 2</span>
+            <h3>Backups that have been restored</h3>
+            <p>Vault Lock in a separate account and S3 Object Lock. Drills 6, 7 and 8.</p>
+          </li>
+          <li class="phase reveal">
+            <span class="phase-tag">Phase 3</span>
+            <h3>Osaka</h3>
+            <p>Aurora Global Database on DR days, a pilot light, Route 53 failover. Drills 9, 10 and 11.</p>
+          </li>
+          <li class="phase reveal">
+            <span class="phase-tag">Phase 4</span>
+            <h3>v1.0</h3>
+            <p>Every item on the production-grade checklist, a case study with the measured results table, articles and
+              videos.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============================== Glossary ============================== -->
+    <section class="section section-alt" id="learn">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">Glossary</p>
+          <h2>New to this? Twelve words explain the whole project.</h2>
+          <p class="section-lede">Every term on this page, in plain words.</p>
+        </div>
+        <dl class="glossary reveal-group">
+          <div class="term reveal"><dt>Idempotency key</dt><dd>A name the client gives one attempt to do something. Send it twice and the second is a replay, not a repeat. Stripe made the pattern common in payments.</dd></div>
+          <div class="term reveal"><dt>Double-entry ledger</dt><dd>Money is never created or destroyed in the books: every movement is written as entries that cancel out. If all entries don't sum to zero, something is wrong.</dd></div>
+          <div class="term reveal"><dt>Transactional outbox</dt><dd>Write the event in the same database transaction as the change it describes, then send it from there. The event can't be lost or invented.</dd></div>
+          <div class="term reveal"><dt>At-least-once delivery</dt><dd>A message may arrive more than once, but never zero times. The receiver deduplicates by id.</dd></div>
+          <div class="term reveal"><dt>Availability Zone (AZ)</dt><dd>One or more data centres in a region with their own power, cooling and network. Kessai spreads over three in Tokyo.</dd></div>
+          <div class="term reveal"><dt>RPO</dt><dd>Recovery point objective: how much data a failure may lose. Here it's counted in acknowledged payments.</dd></div>
+          <div class="term reveal"><dt>RTO</dt><dd>Recovery time objective: how long recovery may take. Here, from the fault to the first acknowledged payment.</dd></div>
+          <div class="term reveal"><dt>Pilot light</dt><dd>A minimal copy of the system in another region: data replicating, compute mostly off until it's needed.</dd></div>
+          <div class="term reveal"><dt>Reconciliation</dt><dd>Checking your own records against someone else's. Here, the ledger against the bank's settlement file.</dd></div>
+          <div class="term reveal"><dt>AWS FIS</dt><dd>Fault Injection Service: AWS's tool for breaking things on purpose, with stop conditions that end a drill early.</dd></div>
+          <div class="term reveal"><dt>Vault Lock</dt><dd>An AWS Backup setting that stops anyone, administrators included, from deleting recovery points early.</dd></div>
+          <div class="term reveal"><dt>COE postmortem</dt><dd>Correction of Error: a postmortem format with impact, timeline, metrics, 5 Whys and action items with owners and dates.</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- ============================== FAQ ============================== -->
+    <section class="section" id="faq">
+      <div class="container narrow">
+        <div class="section-head reveal">
+          <p class="eyebrow">Questions</p>
+          <h2>Before you ask.</h2>
+        </div>
+        <div class="faq reveal">
+          <details><summary>Is any real money involved?</summary><p>No. The bank is a mock, the wallets are demo wallets, and there are no card numbers, so PCI DSS is out of scope, and there's no KYC. The rules it follows are real ones, so the drills mean something.</p></details>
+          <details><summary>Has any drill run yet?</summary><p>Not yet. Phase 0 builds the service on a laptop first. Each result will be published here and in the README as a measured number, with its postmortem, as each drill runs.</p></details>
+          <details><summary>Why no Kafka?</summary><p>Everything that must not be lost lives in Aurora. SQS FIFO only carries events that are already safe in the database, so it can be lost and refilled from the outbox. Kafka would add a second place where data lives.</p></details>
+          <details><summary>What isn't in v1?</summary><p>Authorise-then-capture, platform fees, merchant payouts and other currencies. v1 is top-ups, payments and refunds in yen.</p></details>
+          <details><summary>What does it cost to follow along on AWS?</summary><p>About $4–5 for an 8-hour Tokyo session, $9–12 for an Osaka DR day, and roughly $150–250 for the whole project if it runs only while someone is working on it. These are estimates from AWS Tokyo on-demand prices, not quotes.</p></details>
+          <details><summary>Can I use it as a starting point?</summary><p>Yes, it's MIT licensed. Treat it as a reference for how to build and prove a payments backend, not as a payment product: there is no card processing, KYC or compliance work in it.</p></details>
+          <details><summary>How does it relate to Tasuki?</summary><p>Same author, same production template. <a href="https://github.com/codewithmuh/tasuki-delivery-platform">Tasuki</a> is a delivery platform where the hard part is a system that moves; in Kessai the hard part is a system that must never lose anything.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== CTA ============================== -->
+    <section class="section cta-section" id="contact">
+      <div class="container">
+        <div class="cta-card reveal">
+          <div>
+            <h2>Follow the build.</h2>
+            <p>Each phase ends with measured numbers, a runbook and a postmortem. Watch it get built, broken and fixed on
+              CodeWithMuh, or star the repository to see each drill result land.</p>
+          </div>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="https://youtube.com/@codewithmuh">Watch on YouTube</a>
+            <a class="btn btn-ghost" href="https://github.com/codewithmuh/kessai-payments">Star it on GitHub</a>
+          </div>
+          <span class="cta-stamp" lang="ja" aria-hidden="true">済</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>
+        <a class="brand" href="#top" aria-label="Kessai home">
+          <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" class="mark-bg"/><path d="M7 10.5h18M7 15.5h18M7 20.5h9" class="mark-rule"/><circle cx="22.5" cy="21.5" r="5.5" class="mark-seal"/></svg>
+          <span class="brand-name">Kessai</span><span class="brand-kanji" lang="ja">決済</span>
+        </a>
+        <p class="fine">A reference payments service. No real money. MIT licensed. Built by
+          <a href="https://codewithmuh.com">Muhammad Rashid</a> (<a href="https://youtube.com/@codewithmuh">CodeWithMuh</a>).</p>
+      </div>
+      <nav class="footer-links" aria-label="Documentation">
+        <a href="https://github.com/codewithmuh/kessai-payments">Repository</a>
+        <a href="https://github.com/codewithmuh/kessai-payments/blob/main/docs/scope.md">Scope and design</a>
+        <a href="https://github.com/codewithmuh/kessai-payments/blob/main/docs/roadmap.md">Roadmap</a>
+        <a href="https://github.com/codewithmuh/kessai-payments/blob/main/docs/architecture.md">Architecture</a>
+        <a href="https://github.com/codewithmuh/kessai-payments/blob/main/docs/threat-model.md">Threat model</a>
+        <a href="https://github.com/codewithmuh/kessai-payments/blob/main/infra/README.md">Infrastructure</a>
+        <a href="https://github.com/codewithmuh/kessai-payments/tree/main/docs/runbooks">Runbooks</a>
+        <a href="https://github.com/codewithmuh/kessai-payments/blob/main/CHANGELOG.md">Changelog</a>
+      </nav>
+    </div>
+  </footer>
+
+  <div class="sound-nudge" id="sound-nudge" role="status" hidden>
+    <strong>This page has sound.</strong> Click or tap anywhere to hear each payment settle. Mute any time.
+  </div>
+  <button class="sound-toggle" type="button" aria-pressed="true" hidden>
+    <svg class="sound-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/>
+      <path class="waves" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>
+      <path class="mute" d="M16 9.5l5 5M21 9.5l-5 5"/>
+    </svg>
+    <span class="sound-label">Sound on</span>
+  </button>
+</body>
+</html>

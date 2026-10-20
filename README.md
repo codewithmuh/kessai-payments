@@ -55,6 +55,7 @@ services/api/      Django 5.2 LTS service: src/config (settings), src/core (prob
 dev/               local-only config (ElasticMQ queues)
 infra/             Terraform for AWS (phase 0: written and statically checked, not applied)
 docs/              scope, roadmap, architecture, threat model, ADRs, runbooks
+website/           the public page: static HTML, CSS and JS, no build step
 compose.yaml       local stack with production-like hardening
 Makefile           every command you need
 ```
