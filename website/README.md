@@ -13,6 +13,7 @@ and JavaScript with no build step and no dependencies, so any static host can se
 | `styles.css` | Light and dark themes (follows the visitor's system setting); code blocks stay dark in both |
 | `main.js` | The journey scene (a pure function of scroll position), the hero ledger, the R3 race, the architecture traces, the lost-payment diff, the drill picker, reveals, counters, copy buttons, syntax colouring, and the sound. The page reads fine without it |
 | `favicon.svg` | The mark: a teal ledger page with a vermilion seal |
+| `learn.html` | The study guide: 35 chapters on every concept, the code, the AWS platform, the drills and three labs, with step-by-step diagrams and an "In plain words" box per chapter. One self-contained file (its CSS and JS are inline), linked from the landing page's footer |
 
 ## Sound
 
@@ -60,3 +61,7 @@ drill's `status` in `main.js`) in the same pull request. The journey shows the t
 the real ones from the OpenAPI spec. The hero scoreboard and the race are labelled as illustrations: keep them that
 way. When a drill runs, put its measured lost count and RTO in the drill panel's "Measured" row, and replace the
 recovery targets with results only once they are measured. Documentation links point at `main` on GitHub.
+
+The study guide (`learn.html`) says which repository state it describes (phase 0, 22 October 2026). When code it
+explains changes, update the matching chapter in the same pull request, and move its status pills (Built, Written,
+Designed, Planned) as things ship.
