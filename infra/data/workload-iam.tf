@@ -9,7 +9,7 @@
 
 module "outbox_relay_pod_identity" {
   source  = "terraform-aws-modules/eks-pod-identity/aws"
-  version = "2.9.0"
+  version = "2.10.0"
 
   name                      = "${var.name}-outbox-relay"
   use_name_prefix           = false
@@ -35,7 +35,7 @@ module "outbox_relay_pod_identity" {
 
 module "webhook_sender_pod_identity" {
   source  = "terraform-aws-modules/eks-pod-identity/aws"
-  version = "2.9.0"
+  version = "2.10.0"
 
   name                      = "${var.name}-webhook-sender"
   use_name_prefix           = false
@@ -68,7 +68,7 @@ module "webhook_sender_pod_identity" {
 
 module "mock_bank_pod_identity" {
   source  = "terraform-aws-modules/eks-pod-identity/aws"
-  version = "2.9.0"
+  version = "2.10.0"
 
   name                      = "${var.name}-mock-bank"
   use_name_prefix           = false
@@ -105,7 +105,7 @@ module "mock_bank_pod_identity" {
 
 module "reconcile_pod_identity" {
   source  = "terraform-aws-modules/eks-pod-identity/aws"
-  version = "2.9.0"
+  version = "2.10.0"
 
   name                      = "${var.name}-reconcile"
   use_name_prefix           = false

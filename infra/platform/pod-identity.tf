@@ -11,7 +11,7 @@ data "aws_kms_alias" "data" {
 
 module "ebs_csi_pod_identity" {
   source  = "terraform-aws-modules/eks-pod-identity/aws"
-  version = "2.9.0"
+  version = "2.10.0"
 
   name               = "${var.name}-ebs-csi"
   policy_name_prefix = "${var.name}-"
@@ -22,7 +22,7 @@ module "ebs_csi_pod_identity" {
 
 module "aws_lb_controller_pod_identity" {
   source  = "terraform-aws-modules/eks-pod-identity/aws"
-  version = "2.9.0"
+  version = "2.10.0"
 
   name               = "${var.name}-aws-lb-controller"
   policy_name_prefix = "${var.name}-"
@@ -42,7 +42,7 @@ module "aws_lb_controller_pod_identity" {
 
 module "external_secrets_pod_identity" {
   source  = "terraform-aws-modules/eks-pod-identity/aws"
-  version = "2.9.0"
+  version = "2.10.0"
 
   # A fixed name: infra/data adds read access to the database secret, which Aurora names itself (rds!cluster-...).
   name               = "${var.name}-external-secrets"
