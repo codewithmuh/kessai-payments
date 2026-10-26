@@ -1,14 +1,43 @@
-# Kessai (決済)
+# Kessai (決済) — Zero-Loss Payments on AWS EKS
 
+[![Release](https://img.shields.io/github/v/release/codewithmuh/kessai-payments?style=flat-square&color=blue)](https://github.com/codewithmuh/kessai-payments/releases)
+[![Stars](https://img.shields.io/github/stars/codewithmuh/kessai-payments?style=flat-square&color=gold)](https://github.com/codewithmuh/kessai-payments/stargazers)
+[![Forks](https://img.shields.io/github/forks/codewithmuh/kessai-payments?style=flat-square&color=blueviolet)](https://github.com/codewithmuh/kessai-payments/network/members)
 [![ci](https://github.com/codewithmuh/kessai-payments/actions/workflows/ci.yml/badge.svg)](https://github.com/codewithmuh/kessai-payments/actions/workflows/ci.yml)
 [![release](https://github.com/codewithmuh/kessai-payments/actions/workflows/release.yml/badge.svg)](https://github.com/codewithmuh/kessai-payments/actions/workflows/release.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
+[![YouTube](https://img.shields.io/badge/YouTube-codewithmuh-red?style=flat-square&logo=youtube)](https://youtube.com/@codewithmuh)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Muhammad%20Rashid-blue?style=flat-square&logo=linkedin)](https://www.linkedin.com/in/muhammadrashid-daha/)
 
 **A payments API on Amazon EKS that never loses a payment.** Kessai is a small wallet payments service (top-ups,
 payments and refunds in yen, a double-entry ledger, signed webhooks and daily reconciliation). It runs across three
 Availability Zones in Tokyo with a disaster-recovery copy in Osaka. Then it gets broken on purpose, in 12 failure
 drills that measure how many acknowledged payments were lost (RPO) and how long recovery took (RTO).
+
 <img width="1983" height="793" alt="Kessai Payments_ Cloud Infrastructure Banner" src="https://github.com/user-attachments/assets/ca31fab8-d18b-4540-9074-1aa01ab98c16" />
+
+---
+
+## 🏛️ Architecture & Disaster Recovery Topology
+
+```mermaid
+flowchart TD
+    Client([External Client / Merchant]) -->|HTTPS :443 + Idempotency-Key| Route53[AWS Route 53 DNS Failover]
+    subgraph Primary [Tokyo Region ap-northeast-1 Primary]
+        Route53 --> ALB_Tokyo[Tokyo ALB]
+        subgraph EKS_Tokyo [Amazon EKS Cluster - 3 AZs]
+            ALB_Tokyo --> Pod1[API Pod AZ-a]
+            ALB_Tokyo --> Pod2[API Pod AZ-b]
+            ALB_Tokyo --> Pod3[API Pod AZ-c]
+        end
+        Pod1 & Pod2 & Pod3 --> Aurora_Primary[(Aurora PostgreSQL Multi-AZ)]
+    end
+    subgraph Standby [Osaka Region ap-northeast-3 Disaster Recovery]
+        Route53 -. Health Check Failover .-> ALB_Osaka[Osaka ALB]
+        ALB_Osaka --> EKS_Osaka[Amazon EKS Standby Cluster]
+        Aurora_Primary -. Cross-Region Storage Replication .-> Aurora_DR[(Aurora Global Replica)]
+    end
+```
 > **A reference service, not a payment provider.** No real money, no card data. It follows real-world rules
 > (idempotency keys, signed webhooks, whole-yen amounts, double-entry bookkeeping) so the failure drills mean
 > something.
