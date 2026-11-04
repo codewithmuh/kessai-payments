@@ -1,37 +1,39 @@
-# Security policy
+# Security Policy
 
-## Reporting a vulnerability
+## Supported Versions
 
-Please **do not open a public issue**. Report privately through
-[GitHub private vulnerability reporting](https://github.com/codewithmuh/kessai-payments/security/advisories/new)
-or email **contact@codewithmuh.com** with:
+We provide security updates and patches for the current major release track:
 
-- what is affected (service, version or commit),
-- how to reproduce it,
-- the impact you expect.
+| Version | Supported          |
+| ------- | ------------------ |
+| 1.0.x   | :white_check_mark: |
+| < 1.0   | :x:                |
 
-You will get an acknowledgement within **3 business days** and a plan within **10 business days**.
-Fixes are released as a patch version and credited in the release notes unless you prefer otherwise.
+---
 
-## Supported versions
+## Reporting a Vulnerability
 
-Only the latest release receives security fixes.
+We take the security of this architecture and its deployment scripts seriously. If you discover a security vulnerability or credential exposure risk:
 
-## How this repository protects itself
+1. **Do NOT open a public GitHub issue.**
+2. Report the vulnerability privately via **[GitHub Private Security Advisories](https://github.com/codewithmuh/three-tier-devsecops-project/security/advisories/new)** (preferred).
+3. Alternatively, email the maintainer directly at **[contact@codewithmuh.com](mailto:contact@codewithmuh.com)** with the subject line `[SECURITY] Three-Tier DevSecOps Project`.
 
-| Control | Where |
-|---|---|
-| Secret scanning on every commit and pull request | `.pre-commit-config.yaml`, `ci.yml` (gitleaks) |
-| Dependency and base-image updates every week | `.github/dependabot.yml` |
-| Vulnerability and misconfiguration scans (repo + images) | `ci.yml` (Trivy) |
-| GitHub Actions pinned to commit SHAs, least-privilege tokens | `.github/workflows/*` |
-| Containers run as non-root, read-only, all capabilities dropped | `Dockerfile`s, `compose.yaml` |
-| Signed images (cosign, keyless) with SBOM and provenance | `release.yml` |
+### What to Include in Your Report:
+* Description of the vulnerability or risk (e.g., IAM over-privileging, pipeline injection, insecure container defaults).
+* Steps to reproduce the vulnerability or proof-of-concept configuration.
+* Potential impact and mitigation recommendations.
 
-Verify a published image:
+### Response Timeline:
+* **Initial Acknowledgment**: Within 48 hours.
+* **Assessment & Status Update**: Within 5 business days.
+* **Patch & Public Disclosure**: Coordinated release following remediation.
 
-```bash
-cosign verify ghcr.io/codewithmuh/kessai-payments/api:<version> \
-  --certificate-identity-regexp 'https://github.com/codewithmuh/kessai-payments/' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
-```
+---
+
+## Zero-Secret Policy
+
+This repository strictly enforces a zero-credentials policy:
+* Automated pre-commit and PR scanning is enforced via **Gitleaks**.
+* Environment templates must only use `.env.example` placeholders.
+* Sensitive infrastructure state files (`*.tfstate`) and keys (`*.pem`, `*.key`) are blocked by `.gitignore`.

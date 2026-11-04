@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Security vulnerability
-    url: https://github.com/codewithmuh/kessai-payments/security/advisories/new
-    about: Please report security issues privately, not as a public issue.
+  - name: Community Discussions
+    url: https://github.com/codewithmuh/three-tier-devsecops-project/discussions
+    about: Ask questions, share ideas, and discuss DevOps architectures with the community.
+  - name: Official YouTube Tutorials
+    url: https://youtube.com/@codewithmuh
+    about: Watch video walkthroughs and system design breakdowns.
