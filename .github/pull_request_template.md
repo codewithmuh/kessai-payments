@@ -1,14 +1,20 @@
-## What and why
+## Description
+<!-- Provide a brief description of the changes introduced by this pull request. -->
 
-<!-- One or two sentences: what changes, and why it is needed. Link the issue. -->
-
-## How it was tested
-
-<!-- Commands you ran, screenshots, or a link to the CI run. -->
+## Type of Change
+- [ ] 🐛 Bug fix (non-breaking change fixing an issue)
+- [ ] ✨ New feature (non-breaking change adding functionality)
+- [ ] 🔒 Security fix or hardening
+- [ ] 📝 Documentation update / architecture diagram enhancement
+- [ ] ⚙️ CI/CD pipeline or infrastructure improvement
 
 ## Checklist
+- [ ] My code follows the code style and conventions of this project.
+- [ ] I have verified that no sensitive credentials, secrets, or API keys are committed.
+- [ ] Terraform files are formatted using `terraform fmt`.
+- [ ] Kubernetes manifests have been validated.
+- [ ] Documentation has been updated to reflect any changes.
+- [ ] All automated CI checks (including Gitleaks) pass.
 
-- [ ] PR title follows [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:` …) — it becomes the changelog entry
-- [ ] Tests added or updated; `make check` passes
-- [ ] Docs, runbooks or an ADR updated if behaviour or architecture changed
-- [ ] No secrets, credentials or personal data in the diff
+## Related Issues
+<!-- Link related issues, e.g., Fixes #123 -->
